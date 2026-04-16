@@ -1,0 +1,83 @@
+# ============================================================
+# Rackvio Community Edition — Self-Hosted Deployment
+#
+# Quick start:
+#   cp .env.example .env
+#   # edit .env — set PLATFORM_ADMIN_EMAIL and AUTH_SECRET
+#   docker compose up -d
+#
+# First login: open http://localhost:3000, sign in with
+# your PLATFORM_ADMIN_EMAIL, set a password.
+# ============================================================
+
+services:
+  backend:
+    image: ghcr.io/rackvio/rackvio-backend:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://rackvio_app:${APP_DB_PASS:-devpassword}@postgres:5432/rackvio
+      DATABASE_MIGRATIONS_URL: postgresql+asyncpg://rackvio_migrations:${MIGRATIONS_DB_PASS:-devpassword}@postgres:5432/rackvio
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${AUTH_SECRET}
+      DEPLOYMENT_MODE: self_hosted
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
+      ALLOWED_ORIGINS: "http://localhost:3000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    image: ghcr.io/rackvio/rackvio-frontend:latest
+    restart: unless-stopped
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      BACKEND_INTERNAL_URL: http://backend:8000
+      DEPLOYMENT_MODE: self_hosted
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rackvio
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASS:-devpassword}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rackvio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg_data:
+  redis_data:
