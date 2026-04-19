@@ -10,7 +10,11 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Open http://localhost:3000 and sign in with your admin email.
+Open http://localhost:3000. Check the backend logs for your temporary admin password:
+
+```bash
+docker compose logs backend | grep "temporary password"
+```
 
 ## Load Demo Data
 
@@ -22,4 +26,3 @@ docker compose run --rm --entrypoint python backend -m app.seed.demo_seed
 
 - [Installation Guide](INSTALL.md)
 - [Network Traffic Policy](NETWORK-TRAFFIC-POLICY.md)
-- [SBOM](SBOM.md)

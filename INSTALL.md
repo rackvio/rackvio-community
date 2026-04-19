@@ -18,9 +18,10 @@ Rackvio runs entirely in Docker containers. No additional runtime (Node.js, Pyth
 ## Quick Start
 
 ```bash
-# 1. Download the compose file and environment template
-curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/rackvio/rackvio-community/main/install/docker-compose.yml
-curl -fsSL -o .env.example https://raw.githubusercontent.com/rackvio/rackvio-community/main/install/.env.example
+# 1. Download the compose file, database init script, and environment template
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/rackvio/rackvio-community/main/docker-compose.yml
+curl -fsSL -o db-init.sh https://raw.githubusercontent.com/rackvio/rackvio-community/main/db-init.sh
+curl -fsSL -o .env.example https://raw.githubusercontent.com/rackvio/rackvio-community/main/.env.example
 
 # 2. Configure
 cp .env.example .env
