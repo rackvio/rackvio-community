@@ -6,8 +6,9 @@
 #   # edit .env — set PLATFORM_ADMIN_EMAIL and AUTH_SECRET
 #   docker compose up -d
 #
-# First login: open http://localhost:3000, sign in with
-# your PLATFORM_ADMIN_EMAIL, set a password.
+# First login: open http://localhost:3000, check backend logs
+# for the temporary password:
+#   docker compose logs backend | grep "temporary password"
 # ============================================================
 
 services:
@@ -58,8 +59,11 @@ services:
       POSTGRES_DB: rackvio
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASS:-devpassword}
+      APP_DB_PASS: ${APP_DB_PASS:-devpassword}
+      MIGRATIONS_DB_PASS: ${MIGRATIONS_DB_PASS:-devpassword}
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./db-init.sh:/docker-entrypoint-initdb.d/01-create-roles.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d rackvio"]
       interval: 10s
