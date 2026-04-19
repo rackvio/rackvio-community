@@ -3,7 +3,7 @@ set -e
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
   CREATE USER rackvio_app WITH PASSWORD '${APP_DB_PASS}';
-  CREATE USER rackvio_migrations WITH PASSWORD '${MIGRATIONS_DB_PASS}' CREATEROLE;
+  CREATE USER rackvio_migrations WITH PASSWORD '${MIGRATIONS_DB_PASS}' CREATEROLE BYPASSRLS;
 
   ALTER DATABASE rackvio OWNER TO rackvio_migrations;
   GRANT ALL PRIVILEGES ON DATABASE rackvio TO rackvio_migrations;
