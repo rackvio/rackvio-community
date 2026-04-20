@@ -43,7 +43,7 @@ services:
     environment:
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_URL: http://localhost:3000
-      BACKEND_INTERNAL_URL: http://backend:8000
+      BACKEND_INTERNAL_URL: http://backend:8000/api
       DEPLOYMENT_MODE: self_hosted
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
     ports:
