@@ -18,9 +18,8 @@ Rackvio runs entirely in Docker containers. No additional runtime (Node.js, Pyth
 ## Quick Start
 
 ```bash
-# 1. Download the compose file, database init script, and environment template
+# 1. Download the compose file and environment template
 curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/rackvio/rackvio-community/main/docker-compose.yml
-curl -fsSL -o db-init.sh https://raw.githubusercontent.com/rackvio/rackvio-community/main/db-init.sh
 curl -fsSL -o .env.example https://raw.githubusercontent.com/rackvio/rackvio-community/main/.env.example
 
 # 2. Configure
@@ -203,6 +202,77 @@ Your data is persisted in Docker volumes (`pg_data`, `redis_data`) and survives 
 ```bash
 docker compose exec postgres pg_dump -U postgres rackvio > backup-$(date +%Y%m%d).sql
 ```
+
+## Recovery
+
+Rackvio ships with a break-glass CLI for operators who have lost UI access — for example, when org-wide **Require SSO** is on and the SSO provider is misconfigured. The CLI bypasses every authentication check and talks directly to the database.
+
+**Threat model:** access to these commands implies access to the host or container shell. This is the "keys to the building" assumption — if an attacker can already exec into the backend container, they can already read the database directly. The CLI is not an additional privilege escalation surface; it is a thin, audited wrapper around the recovery operations an operator would otherwise perform by hand.
+
+Every invocation of an `admin` subcommand appends a row to the `audit_events` table under one of the `sso_*` or `sso_cli_*` event types (see `backend/app/enterprise/sso/audit.py::SSO_EVENT_TYPES`), so recovery actions remain traceable.
+
+### Available commands
+
+Run `rackvio admin --help` inside the backend container to see the full list. All three commands below are documented with `--help` on each subcommand.
+
+#### `rackvio admin reset-password <email>`
+
+Resets the password for a local (non-SSO) user. Prompts for the new password with hidden input and confirmation. Writes the bcrypt hash directly to `users.password_hash` — the user can log in via `/auth/bootstrap/login` on the next request.
+
+```bash
+docker compose exec backend rackvio admin reset-password admin@example.com
+```
+
+Use when: the admin UI is unavailable (e.g. SSO is required org-wide and the SSO provider is broken) and you need to restore password access for a specific admin.
+
+Audit event emitted: `sso_cli_password_reset`.
+
+#### `rackvio admin promote-bootstrap <email>`
+
+Sets `users.is_bootstrap_admin = true` on the named user. The bootstrap admin flag re-activates the special first-login flow and the "bootstrap admin" banner in the UI, and is recognized by the `/auth/bootstrap/login` endpoint even when other safety gates are tripped.
+
+```bash
+docker compose exec backend rackvio admin promote-bootstrap admin@example.com
+```
+
+Use when: the original bootstrap admin has been deactivated or deleted, and you need to designate a new one without going through the UI.
+
+Audit event emitted: `sso_cli_bootstrap_promoted`.
+
+#### `rackvio admin disable-sso-requirement <org_name|all>`
+
+Clears the org-wide `organizations.require_sso` flag. Accepts either a specific organization name (exact match, case-insensitive) or the literal `all` to clear the flag across every org in a multi-tenant deployment.
+
+```bash
+# Single org
+docker compose exec backend rackvio admin disable-sso-requirement "Default Organization"
+
+# Every org (SaaS multi-tenant)
+docker compose exec backend rackvio admin disable-sso-requirement all
+```
+
+Use when: the "Require SSO" safety gate was enabled before the SSO provider was fully verified, and every admin account has been locked out of the UI.
+
+Audit event emitted: `sso_require_sso_disabled` (one row per affected org).
+
+### Recovery playbook
+
+If password admins have been locked out by a misconfigured SSO setup, run the three commands in this order:
+
+```bash
+# 1. Clear the org-wide gate so password login will accept credentials again
+docker compose exec backend rackvio admin disable-sso-requirement all
+
+# 2. Reset a known admin's password
+docker compose exec backend rackvio admin reset-password admin@example.com
+
+# 3. (Optional) re-flag the admin as bootstrap admin so the banner shows on
+#    next login and reminds them to re-check SSO configuration before turning
+#    the org-wide toggle back on.
+docker compose exec backend rackvio admin promote-bootstrap admin@example.com
+```
+
+Each command is idempotent and safe to re-run.
 
 ## Troubleshooting
 
