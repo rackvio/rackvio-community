@@ -1,7 +1,7 @@
 # Rackvio Community Edition -- Network Traffic Policy
 
-**Version:** 1.0
-**Effective date:** 2026-04-13
+**Version:** 1.1
+**Effective date:** 2026-06-04
 **Applies to:** Rackvio Community Edition (self-hosted Docker deployment)
 
 ## Summary
@@ -30,7 +30,7 @@ No container initiates connections outside the Docker bridge network unless expl
 
 ## Inbound Connections
 
-The following ports are exposed to the host network and are configurable in `docker-compose.community.yml`:
+The following ports are exposed to the host network and are configurable in `docker-compose.yml`:
 
 | Port | Service  | Purpose                        | Configurable |
 | ---- | -------- | ------------------------------ | ------------ |
@@ -58,15 +58,10 @@ The following outbound connections occur **only** if the administrator explicitl
 
 | Feature                   | Destination                    | When Active                                | Env Variable             |
 | ------------------------- | ------------------------------ | ------------------------------------------ | ------------------------ |
-| OIDC/SSO authentication   | Your identity provider (IdP)   | When OIDC is configured for SSO            | `OIDC_ISSUER`            |
 | SMTP email delivery       | Your SMTP relay                | When SMTP is configured for invitations    | `SMTP_HOST`              |
 | Device library online sync| Rackvio library endpoint       | When sync mode set to `online` or `both`   | `RACKVIO_SYNC_MODE`      |
 
-#### OIDC/SSO
-
-If you configure OIDC authentication (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`), the backend will contact your identity provider's well-known endpoint (`/.well-known/openid-configuration`) to discover token and authorization URLs. This requires DNS resolution and outbound HTTPS to your IdP.
-
-**No OIDC traffic occurs unless you set these variables.** The default authentication mode is bootstrap admin (local password, no external calls).
+> **Note on OIDC/SSO.** SSO is an Enterprise-tier feature and is **not** in the community build. The community image ships with the entire `backend/app/enterprise/` tree stripped, and the frontend replaces every `@/enterprise/*` import with a 404 component, so the `/admin/sso/*` routes return HTTP 404. The community build makes no identity-provider calls. The supported authentication path is the bootstrap admin flow (auto-provisioned on first startup).
 
 #### SMTP
 
@@ -90,13 +85,14 @@ The device equipment library sync mode is controlled by `RACKVIO_SYNC_MODE`:
 
 Rackvio Community Edition uses the following base images:
 
-| Image                     | Source           | Purpose              |
-| ------------------------- | ---------------- | -------------------- |
-| `pgvector/pgvector:pg16`  | Docker Hub       | PostgreSQL database  |
-| `redis:7-alpine`          | Docker Hub       | Cache and queue      |
-| Custom (Dockerfile)       | Built from source| Backend and frontend |
+| Image                                       | Source                    | Purpose                   |
+| ------------------------------------------- | ------------------------- | ------------------------- |
+| `ghcr.io/rackvio/rackvio-backend:latest`    | GitHub Container Registry | Backend (FastAPI/Uvicorn) |
+| `ghcr.io/rackvio/rackvio-frontend:latest`   | GitHub Container Registry | Frontend (Next.js)        |
+| `pgvector/pgvector:pg16`                    | Docker Hub                | PostgreSQL database       |
+| `redis:7-alpine`                            | Docker Hub                | Cache and queue           |
 
-All images are pulled only during initial build. In air-gapped deployments, images can be pre-loaded via `docker load` (see [INSTALL.md](INSTALL.md)).
+The backend and frontend images are prebuilt and published to GHCR; community deployments pull them rather than building from source. All images are pulled from their registries on first start. In air-gapped deployments, images can be pre-loaded via `docker load` (see [INSTALL.md](INSTALL.md)).
 
 ## Verification
 
@@ -105,7 +101,7 @@ To verify zero outbound traffic in your environment:
 ```bash
 # Monitor all outbound connections from the Rackvio containers
 # (should show only inter-container traffic on the Docker bridge)
-docker compose -f docker-compose.community.yml exec backend \
+docker compose -f docker-compose.yml exec backend \
   ss -tunp 2>/dev/null || netstat -tunp
 
 # Or use tcpdump on the host to monitor the Docker bridge

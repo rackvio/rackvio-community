@@ -44,15 +44,33 @@ docker compose logs -f
 
 ## First Login
 
-Rackvio Community Edition uses a **bootstrap admin** flow for the first login:
+On first startup with `DEPLOYMENT_MODE=self_hosted` (the default), Rackvio auto-creates a bootstrap admin account and prints a randomly generated **temporary password** to the backend logs.
 
-1. Open `http://localhost:3000` in your browser.
-2. Click **Sign in** on the login page.
-3. Enter the email address you set in `PLATFORM_ADMIN_EMAIL`.
-4. Set a password when prompted. This creates the platform admin account.
-5. You now have full admin access to the single-tenant instance.
+Read the temporary password from the logs:
 
-The bootstrap admin account is only available when `DEPLOYMENT_MODE=self_hosted` (the default). Once you configure OIDC/SSO, you can optionally disable the bootstrap admin.
+```bash
+docker compose logs backend | grep -A 1 "temporary password"
+```
+
+You should see a block like:
+
+```
+  =============================================
+  Bootstrap admin created
+  Email: you@yourcompany.com
+  Temporary password: 1a2b3c4d5e6f7890
+  Change this password after first login.
+  =============================================
+```
+
+Then:
+
+1. Open `http://localhost:3000` and click **Sign in**.
+2. Enter the email from `PLATFORM_ADMIN_EMAIL` and the temporary password from the logs.
+3. You will be required to set a new password before reaching the dashboard.
+4. You now have full admin access to the single-tenant instance.
+
+The bootstrap admin flow is only active when `DEPLOYMENT_MODE=self_hosted` (the default). If you lose the temporary password, reset it with the break-glass CLI (see [Recovery](#recovery)): `docker compose exec backend rackvio admin reset-password you@yourcompany.com`.
 
 ## Loading Demo Data
 
@@ -170,20 +188,6 @@ To deploy in a fully air-gapped environment:
 The device library operates in `airgapped` mode by default (see `RACKVIO_SYNC_MODE`). Equipment models can be loaded from signed ZIP bundles uploaded through the UI.
 
 See [NETWORK-TRAFFIC-POLICY.md](NETWORK-TRAFFIC-POLICY.md) for the complete network traffic audit.
-
-## Building from Source
-
-If you prefer to build the images yourself instead of pulling from GHCR:
-
-```bash
-git clone https://github.com/rackvio/rackvio-community.git
-cd rackvio-community
-cp .env.example .env
-# edit .env
-docker compose -f docker-compose.community.yml up -d
-```
-
-This builds the images locally using `Dockerfile.community`.
 
 ## Upgrading
 

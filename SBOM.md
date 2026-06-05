@@ -33,11 +33,9 @@ pip install cyclonedx-bom
 # Generate SBOM from the installed packages (recommended -- captures exact versions)
 # Run inside the backend container or a venv with backend deps installed:
 cyclonedx-py environment -o sbom-backend.json --output-format json
-
-# Alternative: generate from pyproject.toml (if no venv available)
-cyclonedx-py requirements backend/requirements.txt -o sbom-backend.json --format json 2>/dev/null \
-  || cyclonedx-py environment -o sbom-backend.json --output-format json
 ```
+
+The Rackvio backend uses `pyproject.toml` (PEP 621, built with Hatchling) -- there is no `requirements.txt` and it is not a Poetry project. The `cyclonedx-py environment` form above is the reliable path: it reads the exact resolved versions from the installed interpreter (run it inside the backend container).
 
 ### Frontend SBOM (Node.js)
 
