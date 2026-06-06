@@ -17,6 +17,8 @@ Rackvio runs entirely in Docker containers. No additional runtime (Node.js, Pyth
 
 ## Quick Start
 
+> **On Windows, run these in Git Bash or WSL — not PowerShell.** PowerShell aliases `curl` to `Invoke-WebRequest` (so `curl -fsSL -o` fails) and has no `grep`. Git Bash (bundled with Git for Windows) or WSL gives you a Unix-style shell where every command below works as written.
+
 ```bash
 # 1. Download the compose file and environment template
 curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/rackvio/rackvio-community/main/docker-compose.yml
@@ -49,7 +51,7 @@ On first startup with `DEPLOYMENT_MODE=self_hosted` (the default), Rackvio auto-
 Read the temporary password from the logs:
 
 ```bash
-docker compose logs backend | grep -A 1 "temporary password"
+docker compose logs backend | grep -iA 1 "temporary password"
 ```
 
 You should see a block like:

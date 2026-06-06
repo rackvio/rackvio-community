@@ -13,7 +13,7 @@ docker compose up -d
 Open http://localhost:3000. Check the backend logs for your temporary admin password:
 
 ```bash
-docker compose logs backend | grep "temporary password"
+docker compose logs backend | grep -i "temporary password"
 ```
 
 ## Load Demo Data
