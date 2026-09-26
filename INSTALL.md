@@ -27,9 +27,9 @@ cp .env.example .env
 
 # Edit .env -- at minimum set:
 #   PLATFORM_ADMIN_EMAIL=you@yourcompany.com
-#   AUTH_SECRET=<64-char random string>
-# Generate AUTH_SECRET:
-#   openssl rand -base64 48 | tr -d '=+/' | cut -c1-64
+#   AUTH_SECRET=<your own random secret>
+# Generate AUTH_SECRET (do NOT keep the value from .env.example):
+#   openssl rand -hex 32
 
 # 3. Start the stack (pulls prebuilt images from GHCR)
 docker compose up -d
@@ -139,7 +139,10 @@ All configuration is via environment variables in the `.env` file.
 | Variable                   | Description                                     |
 | -------------------------- | ----------------------------------------------- |
 | `PLATFORM_ADMIN_EMAIL`     | Email for the auto-provisioned bootstrap admin  |
-| `AUTH_SECRET`              | 64-char random string for JWT signing           |
+| `AUTH_SECRET`              | Random secret that signs login sessions. Generate with `openssl rand -hex 32` |
+
+> **Important:** the `AUTH_SECRET` value in `.env.example` is only an example. It is not secret and must be
+> replaced before you expose Rackvio to anyone. Generate a new one with `openssl rand -hex 32`, put it in `.env`, then run `docker compose up -d --force-recreate backend frontend`. Everyone is signed out and signs in again.
 
 ### Database
 
