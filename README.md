@@ -2,6 +2,13 @@
 
 Self-hosted data center infrastructure management. Zero telemetry, zero outbound connections.
 
+> [!WARNING]
+> **Security notice (2026-09-26):** frontend images `0.1.0`–`0.2.2` contain a critical remote code
+> execution vulnerability (CVE-2025-55182). If you installed before 14 June 2026 and have not pulled
+> since, upgrade now. See the advisory
+> [GHSA-vx55-jjvc-c4v4](https://github.com/rackvio/rackvio-community/security/advisories/GHSA-vx55-jjvc-c4v4)
+> for how to check your version and upgrade safely.
+
 ## Install
 
 ```bash
