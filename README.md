@@ -32,7 +32,7 @@ Every setting in `.env` reaches Rackvio — email, storage, the port, the addres
 links. See [INSTALL.md](INSTALL.md).
 
 > **Upgrading from an earlier compose file?** Uploaded floor-plan drawings now live on their own
-> volume. Copy them out before you replace `docker-compose.yml` — see
+> `uploads` volume. Copy them out before you replace `docker-compose.yml` — see
 > [Upgrade](INSTALL.md#upgrade).
 
 ## Load demo data
