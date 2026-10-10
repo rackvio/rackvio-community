@@ -1,7 +1,7 @@
 # Rackvio Community Edition -- Network Traffic Policy
 
-**Version:** 1.1
-**Effective date:** 2026-06-04
+**Version:** 1.2
+**Effective date:** 2026-10-10
 **Applies to:** Rackvio Community Edition (self-hosted Docker deployment)
 
 ## Summary
@@ -13,10 +13,14 @@ Rackvio Community Edition makes **zero outbound network connections** by default
 The Rackvio stack consists of four containers that communicate exclusively over the Docker bridge network:
 
 ```
+browser  ---HTTP(S)--> frontend (Next.js)   the web app, and the API at /api
 frontend (Next.js) ---HTTP---> backend (FastAPI)
 backend  (FastAPI) ---TCP----> postgres (PostgreSQL 16)
 backend  (FastAPI) ---TCP----> redis (Redis 7)
 ```
+
+The browser only ever talks to the frontend's address. The frontend passes `/api` requests to the
+backend inside the Docker network.
 
 No container initiates connections outside the Docker bridge network unless explicitly configured by the administrator (see Optional Outbound Connections below).
 
@@ -24,20 +28,19 @@ No container initiates connections outside the Docker bridge network unless expl
 
 | Source    | Destination | Protocol | Port | Purpose                          |
 | --------- | ----------- | -------- | ---- | -------------------------------- |
-| frontend  | backend     | HTTP     | 8000 | API requests (server-side)       |
+| frontend  | backend     | HTTP     | 8000 | API requests (pages rendered on the server, and the browser's `/api` calls) |
 | backend   | postgres    | TCP      | 5432 | Database queries                 |
 | backend   | redis       | TCP      | 6379 | Sessions, cache, task queue      |
 
 ## Inbound Connections
 
-The following ports are exposed to the host network and are configurable in `docker-compose.yml`:
+One port is exposed to the host network:
 
-| Port | Service  | Purpose                        | Configurable |
-| ---- | -------- | ------------------------------ | ------------ |
-| 3000 | frontend | Web UI (Next.js)               | Yes          |
-| 8000 | backend  | REST API (FastAPI/Uvicorn)     | Yes          |
+| Port | Service  | Purpose                                   | Configurable |
+| ---- | -------- | ----------------------------------------- | ------------ |
+| 3000 | frontend | Web UI, and the REST API at `/api`        | Yes, `RACKVIO_PORT` in `.env` |
 
-No other ports are exposed by default. PostgreSQL (5432) and Redis (6379) are accessible only within the Docker bridge network.
+No other ports are exposed. The backend (8000), PostgreSQL (5432) and Redis (6379) are reachable only within the Docker bridge network.
 
 ## Outbound Connections
 
@@ -58,16 +61,16 @@ The following outbound connections occur **only** if the administrator explicitl
 
 | Feature                   | Destination                    | When Active                                | Env Variable             |
 | ------------------------- | ------------------------------ | ------------------------------------------ | ------------------------ |
-| SMTP email delivery       | Your SMTP relay                | When SMTP is configured for invitations    | `SMTP_HOST`              |
+| SMTP email delivery       | Your SMTP relay                | When SMTP is configured                    | `SMTP_HOST`              |
 | Device library online sync| Rackvio library endpoint       | When sync mode set to `online` or `both`   | `RACKVIO_SYNC_MODE`      |
 
 > **Note on OIDC/SSO.** SSO is an Enterprise-tier feature and is **not** in the community build. The community image ships with the entire `backend/app/enterprise/` tree stripped, and the frontend replaces every `@/enterprise/*` import with a 404 component, so the `/admin/sso/*` routes return HTTP 404. The community build makes no identity-provider calls. The supported authentication path is the bootstrap admin flow (auto-provisioned on first startup).
 
 #### SMTP
 
-If you configure SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`), the backend will connect to your mail relay to send user invitation emails.
+If you configure SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`), the backend will connect to your mail relay to send invitation and password-reset emails.
 
-**No SMTP traffic occurs unless you set these variables.** Without SMTP configured, invitation emails are logged to stdout instead.
+**No SMTP traffic occurs unless you set these variables.** Without SMTP configured, nothing is sent, and the links are not written to the logs; an administrator hands them over instead (Admin → Users, or `rackvio admin invite-link` / `reset-link` — see [INSTALL.md](INSTALL.md)).
 
 #### Device Library Sync
 

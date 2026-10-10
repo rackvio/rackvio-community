@@ -6,25 +6,35 @@
 #   # edit .env — set PLATFORM_ADMIN_EMAIL and AUTH_SECRET
 #   docker compose up -d
 #
-# First login: open http://localhost:3000, check backend logs
-# for the temporary password:
-#   docker compose logs backend | grep "temporary password"
+# Then open http://<this server>:3000 from any computer that can reach it.
+# The first administrator's temporary password is in the backend log:
+#   docker compose logs backend | grep -i "temporary password"
+#
+# Every setting in .env reaches Rackvio. The web app and the API share one
+# port (RACKVIO_PORT): the browser calls /api on the same address, and the
+# web app passes those calls to the backend inside this compose network.
 # ============================================================
 
 services:
   backend:
-    image: ghcr.io/rackvio/rackvio-backend:latest
+    image: ghcr.io/rackvio/rackvio-backend:${RACKVIO_VERSION:-latest}
     restart: unless-stopped
+    # All of .env (email, storage, two-factor key, ...) reaches the backend.
+    env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://rackvio_app:${APP_DB_PASS:-devpassword}@postgres:5432/rackvio
       DATABASE_MIGRATIONS_URL: postgresql+asyncpg://rackvio_migrations:${MIGRATIONS_DB_PASS:-devpassword}@postgres:5432/rackvio
       REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${AUTH_SECRET}
+      SECRET_KEY: ${AUTH_SECRET:?Set AUTH_SECRET in .env (openssl rand -hex 32)}
       DEPLOYMENT_MODE: self_hosted
-      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
-      ALLOWED_ORIGINS: "http://localhost:3000"
-    ports:
-      - "8000:8000"
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:?Set PLATFORM_ADMIN_EMAIL in .env}
+      # The address used in emailed links and by `rackvio admin invite-link`.
+      APP_BASE_URL: ${RACKVIO_PUBLIC_URL:-http://localhost:3000}
+      PUBLIC_BASE_URL: ${RACKVIO_PUBLIC_URL:-http://localhost:3000}
+    volumes:
+      # Uploaded floor-plan drawings. Back this up with the database.
+      - uploads:/app/uploads
+    # No published port: the backend is reached through the web app at /api.
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,24 +42,24 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
 
   frontend:
-    image: ghcr.io/rackvio/rackvio-frontend:latest
+    image: ghcr.io/rackvio/rackvio-frontend:${RACKVIO_VERSION:-latest}
     restart: unless-stopped
     environment:
-      AUTH_SECRET: ${AUTH_SECRET}
-      AUTH_URL: http://localhost:3000
-      BACKEND_INTERNAL_URL: http://backend:8000/api
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env (openssl rand -hex 32)}
+      BACKEND_INTERNAL_URL: http://backend:8000
       DEPLOYMENT_MODE: self_hosted
-      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:?Set PLATFORM_ADMIN_EMAIL in .env}
     ports:
-      - "3000:3000"
+      - "${RACKVIO_PORT:-3000}:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -112,3 +122,4 @@ services:
 volumes:
   pg_data:
   redis_data:
+  uploads:

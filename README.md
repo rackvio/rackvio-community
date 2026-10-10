@@ -14,22 +14,37 @@ Self-hosted data center infrastructure management. Zero telemetry, zero outbound
 ## Install
 
 ```bash
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/rackvio/rackvio-community/main/docker-compose.yml
+curl -fsSL -o .env.example https://raw.githubusercontent.com/rackvio/rackvio-community/main/.env.example
 cp .env.example .env
 # Edit .env — set PLATFORM_ADMIN_EMAIL, and set AUTH_SECRET to the output of: openssl rand -hex 32
 docker compose up -d
 ```
 
-Open http://localhost:3000. Check the backend logs for your temporary admin password:
+Open `http://<your-server>:3000` from any computer that can reach the server. Check the backend logs
+for your temporary admin password:
 
 ```bash
 docker compose logs backend | grep -i "temporary password"
 ```
 
-## Load Demo Data
+Every setting in `.env` reaches Rackvio — email, storage, the port, the address used in emailed
+links. See [INSTALL.md](INSTALL.md).
+
+> **Upgrading from an earlier compose file?** Uploaded floor-plan drawings now live on their own
+> volume. Copy them out before you replace `docker-compose.yml` — see
+> [Upgrade](INSTALL.md#upgrade).
+
+## Load demo data
+
+On a new install, before you create any sites:
 
 ```bash
-docker compose run --rm --entrypoint python backend -m app.seed.demo_seed
+docker compose run --rm --entrypoint python backend -m app.seed.demo_seed --org-name Default
 ```
+
+It adds an example colocation facility to **Default**, the organization your administrator account
+belongs to. Don't add `--reset`: it deletes the organization it seeds, including its users.
 
 ## Docs
 

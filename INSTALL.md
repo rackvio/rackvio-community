@@ -1,8 +1,8 @@
 # Rackvio Community Edition -- Installation Guide
 
-This guide gets you from zero to a running Rackvio instance in under 5 minutes.
+This guide gets you from zero to a running Rackvio instance in a few minutes.
 
-## System Requirements
+## System requirements
 
 | Requirement       | Minimum             |
 | ----------------- | ------------------- |
@@ -11,47 +11,59 @@ This guide gets you from zero to a running Rackvio instance in under 5 minutes.
 | RAM               | 4 GB                |
 | CPU               | 2 cores             |
 | Disk              | 10 GB free          |
-| Operating System  | Linux, macOS, or Windows (with WSL2) |
+| Operating system  | Linux, macOS, or Windows (with WSL2) |
 
-Rackvio runs entirely in Docker containers. No additional runtime (Node.js, Python, PostgreSQL) needs to be installed on the host.
+Rackvio runs entirely in Docker containers. Nothing else (Node.js, Python, PostgreSQL) needs to be
+installed on the server.
 
-## Quick Start
+## Install
 
 ```bash
-# 1. Download the compose file and environment template
+# 1. Download the compose file and the settings template
 curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/rackvio/rackvio-community/main/docker-compose.yml
 curl -fsSL -o .env.example https://raw.githubusercontent.com/rackvio/rackvio-community/main/.env.example
 
-# 2. Create your environment file
+# 2. Create your settings file
 cp .env.example .env
-
 # Edit .env -- at minimum set:
 #   PLATFORM_ADMIN_EMAIL=you@yourcompany.com
-#   AUTH_SECRET=<your own random secret>
-# Generate AUTH_SECRET (do NOT keep the value from .env.example):
-#   openssl rand -hex 32
+#   AUTH_SECRET=<your own random secret>   (generate it with: openssl rand -hex 32)
+# and set the database passwords now (see "Database passwords" below).
 
-# 3. Start the stack (pulls prebuilt images from GHCR)
+# 3. Start Rackvio (pulls the prebuilt images)
 docker compose up -d
 ```
 
-Startup takes 30-60 seconds on first run while images pull from GitHub Container Registry and PostgreSQL initializes. Watch progress with:
+The first start takes a minute or two while the images download and the database is prepared. Watch
+it with `docker compose logs -f`.
 
-```bash
-docker compose logs -f
-```
+If `AUTH_SECRET` or `PLATFORM_ADMIN_EMAIL` is missing, `docker compose up` stops with a message
+saying which.
 
-## First Login
+## Open Rackvio
 
-On first startup with `DEPLOYMENT_MODE=self_hosted` (the default), Rackvio auto-creates a bootstrap admin account and prints a randomly generated temporary password to the backend logs.
+Open `http://<your-server>:3000` in a browser on any computer that can reach the server — its name or
+IP address, or `http://localhost:3000` on the server itself. The web app and the API share this one
+port: the browser calls `/api` on the same address, and the web app passes those calls to the
+backend inside the Docker network. The backend and the database publish no ports of their own.
 
-Read the temporary password from the logs:
+- **A different port:** set `RACKVIO_PORT` in `.env` and run `docker compose up -d`.
+- **Your own hostname and HTTPS:** put your own reverse proxy in front of port 3000 and forward
+  everything (`/` and `/api`) to it. Pass the `Host` (or `X-Forwarded-Host`) and `X-Forwarded-Proto`
+  headers, so that sign-in follows the address people use and its cookies are marked secure on
+  HTTPS.
+- **Links in emails:** set `RACKVIO_PUBLIC_URL` in `.env` to the address people open, for example
+  `https://rackvio.example.com`. Rackvio puts it in invitation and password-reset links. Sign-in
+  itself works at any address without it.
+
+## Sign in for the first time
+
+On the first start Rackvio creates the organization **Default** and an administrator account for
+`PLATFORM_ADMIN_EMAIL`, and prints a temporary password in the backend log:
 
 ```bash
 docker compose logs backend | grep -iA 1 "temporary password"
 ```
-
-You should see a block like:
 
 ```
   =============================================
@@ -61,378 +73,330 @@ You should see a block like:
   Change this password after first login.
 ```
 
-Then:
+1. Open Rackvio, enter the email address, click **Continue**, enter the temporary password and
+   click **Sign in**.
+2. Choose a new password. Rackvio signs you out; sign in again with the new one.
 
-1. Open `http://localhost:3000` and click **Sign in**.
-2. Enter the email from `PLATFORM_ADMIN_EMAIL` and the temporary password from the logs.
-3. You will be required to set a new password before reaching the dashboard.
-4. You now have full admin access to the single-tenant instance.
+A banner reminds you while you are signed in as this first (bootstrap) administrator.
 
-A persistent warning banner is shown while logged in as the bootstrap admin. This is the signal that the account should be rotated or disabled before production use.
+### If you lose the temporary password
 
-### Resetting the Bootstrap Admin Password
+Print a password-reset link on the server and open it (it is valid for 15 minutes and works once):
 
-If you lose the temporary password, reset it via the CLI:
+```bash
+docker compose exec backend rackvio admin reset-link you@yourcompany.com
+```
+
+Or set a new password directly; it asks for it twice:
 
 ```bash
 docker compose exec backend rackvio admin reset-password you@yourcompany.com
 ```
 
-The command prompts for a new password (input hidden, confirmed), writes the bcrypt hash to the user record, and you can log in immediately with the new credentials.
+## Settings
 
-## Loading Demo Data
+Every setting goes in `.env`, and every line in `.env` reaches Rackvio. After a change, run
+`docker compose up -d`. `.env.example` lists them with comments. Keep comments on their own lines:
+text after a value becomes part of the value.
 
-To populate Rackvio with a realistic 50-rack colo facility for evaluation and demos:
+### Required
 
-```bash
-docker compose run --rm --entrypoint python backend -m app.seed.demo_seed
-```
+| Setting | What it's for |
+| --- | --- |
+| `PLATFORM_ADMIN_EMAIL` | The email address of the first administrator account |
+| `AUTH_SECRET` | A random secret that signs sign-ins and links, and protects two-factor secrets. Generate it with `openssl rand -hex 32`. The value in `.env.example` is only an example and must be replaced |
 
-This creates:
-- **1 site** (East Coast DC Site) with 2 buildings
-- **4 rooms** across the buildings (Production, Network Core, DR Primary, Storage)
-- **50 racks** (42U each) distributed across rooms
-- **~150-200 assets** (Dell servers, Cisco switches, APC PDUs, Panduit patch panels)
-- **Full power tree** with utility feeds, UPS, floor PDUs, rack PDUs, and outlets
-- **IP allocations** with 10.0.0.0/16 supernet and 3 subnets (~50 IP assignments)
+### Address, port and version
 
-The seed script is idempotent -- running it again is a no-op if the demo organization already exists.
+| Setting | Default | What it's for |
+| --- | --- | --- |
+| `RACKVIO_PUBLIC_URL` | `http://localhost:3000` | The address used in emailed and printed links |
+| `RACKVIO_PORT` | `3000` | The port Rackvio listens on |
+| `RACKVIO_VERSION` | `latest` | The release to run. Pin a version such as `1.2.2` to upgrade on your own schedule |
 
-## Importing Your Data
+### Database passwords
 
-Rackvio supports CSV import for bulk asset onboarding, with a dry-run validation pass that reports errors before any rows are written.
+| Setting | Default | What it's for |
+| --- | --- | --- |
+| `DB_PASS` | `devpassword` | The PostgreSQL administrator account |
+| `APP_DB_PASS` | `devpassword` | The account Rackvio uses for everyday reads and writes |
+| `MIGRATIONS_DB_PASS` | `devpassword` | The account Rackvio uses to update the database structure |
 
-### CSV Format
+Set a different strong password for each one **before the first start**, for example with
+`openssl rand -base64 24 | tr -d '=+/'`. The database accounts are created on the first start only;
+to change a password later, see [Troubleshooting](#database-authentication-failed-after-changing-a-password).
 
-| Column              | Required | Description                              |
-| ------------------- | -------- | ---------------------------------------- |
-| `name`              | Yes      | Asset name (unique within rack)          |
-| `equipment_model`   | Yes      | Equipment model name (must exist in catalog) |
-| `rack`              | Yes      | Rack name (must exist in location hierarchy) |
-| `u_position`        | No       | Rack unit position (bottom of device)    |
-| `face`              | No       | `front` or `rear` (default: `front`)     |
-| `lifecycle_state`   | No       | `planned`, `installed`, `reserved`, `decommissioned` |
+### Email
 
-### Example CSV
+Rackvio sends two kinds of email: invitations to new users, and password-reset links.
 
-```csv
-name,equipment_model,rack,u_position,face,lifecycle_state
-WEB-SRV-01,Dell PowerEdge R760,A1-01,1,front,installed
-WEB-SRV-02,Dell PowerEdge R760,A1-01,3,front,installed
-CORE-SW-01,Cisco Catalyst 9300,A1-01,42,front,installed
-```
+| Setting | Default | What it's for |
+| --- | --- | --- |
+| `SMTP_HOST` | (not set) | Your mail server. Email is off until this is set |
+| `SMTP_PORT` | `587` | Its port |
+| `SMTP_USE_TLS` | `true` | Upgrade the connection with STARTTLS. Servers that only accept TLS from the start (usually port 465) aren't supported |
+| `SMTP_USERNAME` | (not set) | Sign-in name for the mail server, if it needs one |
+| `SMTP_PASSWORD` | (not set) | Its password |
+| `SMTP_FROM_EMAIL` | `noreply@rackvio.local` | The From address |
 
-### Import Steps
+Without a mail server you can still invite people and reset passwords — see the next section.
 
-1. Navigate to **Assets** in the sidebar.
-2. Click the **Import** button.
-3. Upload your CSV file.
-4. Review the dry-run preview (shows which rows will be inserted and any validation errors).
-5. Confirm to commit the import.
+### Invitations and password resets without email
 
-## Configuration
+An administrator can hand a link over directly:
 
-All configuration is via environment variables in the `.env` file.
+- **Admin → Users**, on a pending invitation's row: **Copy invitation link**. The link is valid for
+  72 hours and works once. Creating it replaces any earlier link for that invitation, including one
+  already emailed.
+- **Admin → Users**, on another user's row: **Create a password-reset link**. It is valid for
+  15 minutes and works once; the user's current password keeps working until they use it.
 
-### Required Variables
-
-| Variable                   | Description                                     |
-| -------------------------- | ----------------------------------------------- |
-| `PLATFORM_ADMIN_EMAIL`     | Email for the auto-provisioned bootstrap admin  |
-| `AUTH_SECRET`              | Random secret that signs login sessions. Generate with `openssl rand -hex 32` |
-
-> **Important:** the `AUTH_SECRET` value in `.env.example` is only an example. It is not secret and must be
-> replaced before you expose Rackvio to anyone. Generate a new one with `openssl rand -hex 32`, put it in `.env`, then run `docker compose up -d --force-recreate backend frontend`. Everyone is signed out and signs in again.
-
-### Database
-
-| Variable              | Default       | Description                                    |
-| --------------------- | ------------- | ---------------------------------------------- |
-| `DB_PASS`             | `devpassword` | PostgreSQL superuser password                  |
-| `APP_DB_PASS`         | `devpassword` | Application role (`rackvio_app`, no BYPASSRLS) |
-| `MIGRATIONS_DB_PASS`  | `devpassword` | Migrations role (`rackvio_migrations`, BYPASSRLS) |
-
-For production, generate a unique strong password for each of the three roles:
+Or print the same links on the server:
 
 ```bash
-openssl rand -base64 24 | tr -d '=+/'  # DB_PASS
-openssl rand -base64 24 | tr -d '=+/'  # APP_DB_PASS
-openssl rand -base64 24 | tr -d '=+/'  # MIGRATIONS_DB_PASS
+docker compose exec backend rackvio admin invite-link someone@example.com
+docker compose exec backend rackvio admin reset-link someone@example.com
 ```
 
-Change the passwords before first startup. Changing them afterwards requires manually updating the PostgreSQL roles (see Troubleshooting).
+Each link is recorded in the audit log. Links are never written to the server logs. Printed links use
+`RACKVIO_PUBLIC_URL`; the Users page uses that address too, or the address you are using if it isn't
+set.
 
-### Deployment Mode
+### Two-factor authentication and changing AUTH_SECRET
 
-| Variable              | Default         | Description                                    |
-| --------------------- | --------------- | ---------------------------------------------- |
-| `DEPLOYMENT_MODE`     | `self_hosted`   | `self_hosted` enables the bootstrap admin auto-provisioning. `saas` disables it (used by the hosted Cloud deployments). |
-| `ALLOWED_ORIGINS`     | `http://localhost:3000` | CORS allowed origins (comma-separated) |
+The key that protects two-factor secrets is derived from `AUTH_SECRET`. To change `AUTH_SECRET`
+without breaking anyone's authenticator app:
 
-### Equipment Library Sync
+1. Print the current key and add the last line it prints to `.env` as `MFA_ENCRYPTION_KEY=...`:
 
-| Variable              | Default         | Description                                    |
-| --------------------- | --------------- | ---------------------------------------------- |
-| `RACKVIO_SYNC_MODE`   | `airgapped`     | `airgapped`, `online`, or `both`               |
-| `RACKVIO_LIBRARY_URL` | _(empty)_       | Required when `RACKVIO_SYNC_MODE` is `online` or `both` |
+   ```bash
+   docker compose exec backend rackvio admin mfa-print-key
+   ```
 
-In `airgapped` mode (the default), the equipment catalog only accepts signed ZIP bundles uploaded through the admin UI. See [Network Traffic Policy](/network-traffic-policy) for the full outbound-connection breakdown.
+2. Put the new `AUTH_SECRET` in `.env`.
+3. Run `docker compose up -d --force-recreate backend frontend`. Everyone is signed out and signs in
+   again.
 
-### SMTP (optional, for invitation emails)
+If you skip step 1, two-factor users aren't locked out: each signs in with a recovery code and sets
+up their authenticator app again.
 
-User invitation emails fall back to stdout logging when SMTP is unset. Set these to deliver real emails:
+### Floor-plan storage
 
-| Variable          | Description                                |
-| ----------------- | ------------------------------------------ |
-| `SMTP_HOST`       | SMTP relay hostname                        |
-| `SMTP_PORT`       | Default `587`                              |
-| `SMTP_USE_TLS`    | Default `true`                             |
-| `SMTP_USERNAME`   | SMTP auth user                             |
-| `SMTP_PASSWORD`   | SMTP auth password                         |
-| `SMTP_FROM_EMAIL` | From address (default `noreply@rackvio.local`) |
-| `APP_BASE_URL`    | Public URL used to construct invite links (e.g. `https://dcim.example.com`) |
+Uploaded floor-plan drawings are kept on the `uploads` Docker volume, so they survive restarts and
+upgrades. Back them up with the database (see [Back up and restore](#back-up-and-restore)).
 
-## Exposing Rackvio on the Public Internet
+To keep them in Amazon S3 or an S3-compatible service instead:
 
-The Community Edition compose file binds only to `localhost:3000` and `localhost:8000` -- you bring your own reverse proxy (nginx, Caddy, Traefik, AWS ALB, Cloudflare Tunnel, etc.) for TLS termination and public DNS.
+| Setting | What it's for |
+| --- | --- |
+| `STORAGE_BACKEND` | `local` (the default) or `s3` |
+| `S3_BUCKET` | The bucket. Required with `s3` |
+| `S3_REGION` | Defaults to `us-east-1` |
+| `S3_ENDPOINT_URL` | For an S3-compatible service. Leave it unset for Amazon S3 |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Credentials, if the server has no other way to get them |
 
-At minimum your proxy should:
-
-1. Terminate TLS (Let's Encrypt or your own certificate)
-2. Proxy `/` to frontend `localhost:3000`
-3. Proxy `/api` to backend `localhost:8000`
-4. Preserve `X-Forwarded-For` / `X-Forwarded-Proto` headers
-
-Then update `.env`:
+Copy the existing drawings before you switch: add the S3 settings to `.env` but leave
+`STORAGE_BACKEND` unset, run `docker compose up -d`, then
 
 ```bash
-AUTH_URL=https://dcim.yourcompany.com
-NEXT_PUBLIC_API_URL=https://dcim.yourcompany.com/api
-ALLOWED_ORIGINS=https://dcim.yourcompany.com
-APP_BASE_URL=https://dcim.yourcompany.com
+docker compose exec -e STORAGE_BACKEND=s3 backend rackvio uploads migrate
 ```
 
-## Air-Gapped Deployment
+When it has run cleanly, set `STORAGE_BACKEND=s3` in `.env` and run `docker compose up -d` again.
 
-Rackvio Community Edition is designed for air-gapped operation. By default, the application makes **zero outbound network connections**.
+## Load demo data
 
-To deploy in a fully air-gapped environment:
+To try Rackvio with an example colocation facility, run this on a new install, before you create any
+sites:
 
-1. On a machine with internet access, pull and save the Docker images:
+```bash
+docker compose run --rm --entrypoint python backend -m app.seed.demo_seed --org-name Default
+```
+
+It adds the data to **Default**, the organization your administrator account belongs to: one site
+with two buildings and four rooms, 50 racks with roughly 150 to 200 devices, a power chain from the
+utility feeds to the rack outlets, and an IP network with three subnets. If the organization already
+has a site, the command changes nothing and says so.
+
+> **Don't add `--reset`.** It deletes the organization it seeds, including its users, before seeding
+> again. Without `--org-name Default` the command creates a separate organization that has no users,
+> so nobody can sign in to see it.
+
+## Import your assets
+
+Use **Admin → Import** and **Download CSV Template**. Each equipment model and each rack must already
+exist, with exactly the name in the file. There is no dry run: valid rows are saved when you click
+**Upload and Import**, and **Download failed rows** gives you the rest with the reason.
+
+## Upgrade
+
+1. [Back up](#back-up-and-restore).
+2. **The first time you upgrade to this compose file** (the one with an `uploads` volume), copy the
+   floor-plan drawings out of the running backend before you replace `docker-compose.yml`; the old
+   file kept them inside the container, and they go when it is replaced:
+
+   ```bash
+   docker compose cp backend:/app/uploads ./uploads-before-upgrade
+   ```
+
+   Then download the new `docker-compose.yml` and `.env.example` (see [Install](#install)), and add
+   any new settings you want from `.env.example` to your `.env`. The API is now reached through port
+   3000 at `/api`; port 8000 is no longer published.
+3. Pull the new images and restart:
+
+   ```bash
+   docker compose pull
+   docker compose up -d
+   ```
+
+   Rackvio updates the database structure on its own when it starts. If you copied drawings out in
+   step 2, put them back:
+
+   ```bash
+   docker compose cp ./uploads-before-upgrade/. backend:/app/uploads
+   ```
+
+4. Refresh the device library, which is only loaded on the first start:
+
+   ```bash
+   docker compose run --rm --entrypoint python backend -m app.library.apply_seed
+   ```
+
+   It adds new device types and updates existing ones; it never removes any.
+
+Database updates only go forward. To go back to the previous version, restore the backup from step 1
+and run the previous images (`RACKVIO_VERSION`).
+
+## Back up and restore
+
+Back up three things.
+
+**The database:**
+
+```bash
+docker compose exec -T postgres pg_dump -U postgres -Fc rackvio > rackvio-$(date +%Y%m%d).dump
+```
+
+**Uploaded floor-plan drawings:**
+
+```bash
+docker compose cp backend:/app/uploads ./uploads-$(date +%Y%m%d)
+```
+
+**Your `.env` file.** Two-factor secrets can only be read with the `AUTH_SECRET` (or
+`MFA_ENCRYPTION_KEY`) that was in use when they were saved.
+
+To restore, stop Rackvio, load the backup, and start it again, with the same Rackvio version you
+backed up from:
+
+```bash
+docker compose stop backend frontend
+docker compose exec -T postgres pg_restore -U postgres -d rackvio --clean --if-exists < rackvio-YYYYMMDD.dump
+docker compose cp ./uploads-YYYYMMDD/. backend:/app/uploads
+docker compose start backend frontend
+```
+
+## Run without internet access
+
+Rackvio makes no outbound connections unless you configure them (see the
+[Network Traffic Policy](NETWORK-TRAFFIC-POLICY.md)). To install on a server with no internet access:
+
+1. On a computer with internet access, in the folder with your `docker-compose.yml` and `.env`:
+
    ```bash
    docker compose pull
    docker save ghcr.io/rackvio/rackvio-backend:latest ghcr.io/rackvio/rackvio-frontend:latest \
      pgvector/pgvector:pg16 redis:7-alpine | gzip > rackvio-images.tar.gz
    ```
 
-2. Transfer `rackvio-images.tar.gz`, your `docker-compose.yml`, and the `.env` file to the air-gapped machine.
+   (Use your `RACKVIO_VERSION` instead of `latest` if you pinned one.)
+2. Copy `rackvio-images.tar.gz`, `docker-compose.yml` and `.env` to the server.
+3. Load the images and start Rackvio:
 
-3. Load the images:
    ```bash
    docker load < rackvio-images.tar.gz
-   ```
-
-4. Start normally:
-   ```bash
    docker compose up -d
    ```
 
-The equipment library stays in `airgapped` mode by default (see `RACKVIO_SYNC_MODE`). New device types can be loaded from signed ZIP bundles uploaded through the admin UI.
+The device library is inside the backend image, so it needs no download.
 
-See the [Network Traffic Policy](/network-traffic-policy) for the complete network traffic audit.
+## Recovery commands
 
-## Backup and Restore
+These work directly on the database, for when you can't get in through the browser. Run them on the
+server, in the folder with your `docker-compose.yml`, with `docker compose exec backend` in front.
+Anyone who can run them already has full access to the server, so they add no new risk.
 
-Data is persisted in Docker volumes (`pg_data`, `redis_data`) and survives container recreation.
+| Command | What it does |
+| --- | --- |
+| `rackvio admin reset-link <email>` | Prints a password-reset link (15 minutes, works once) |
+| `rackvio admin invite-link <email>` | Prints a new link for a pending invitation (72 hours, works once) |
+| `rackvio admin reset-password <email>` | Sets a new password for a user. Asks for it twice |
+| `rackvio admin promote-bootstrap <email>` | Marks a user as the bootstrap administrator |
+| `rackvio admin mfa-disable-requirement Default` | Turns off **Require two-factor authentication** for the organization. Users keep their authenticators |
+| `rackvio admin mfa-print-key` | Prints the key that protects two-factor secrets (see above) |
+| `rackvio uploads migrate` | Copies floor-plan drawings to S3 (see above) |
 
-Back up the database before upgrading or on a schedule:
+`Default` is the name of your organization. `rackvio admin --help` lists a few more commands, for
+features that Community Edition doesn't include.
 
-```bash
-docker compose exec postgres \
-  pg_dump -U postgres rackvio > backup-$(date +%Y%m%d).sql
-```
+## What Community Edition includes
 
-Restore from a dump:
-
-```bash
-docker compose exec -T postgres \
-  psql -U postgres -d rackvio < backup-YYYYMMDD.sql
-```
-
-## Upgrading
-
-```bash
-# 1. Pull the latest images
-docker compose pull
-
-# 2. Restart with the new images
-docker compose up -d
-
-# 3. Database migrations run automatically on backend startup
-```
-
-Back up first (see above). Migrations are forward-only -- there is no automatic downgrade path. To roll back, restore from the pre-upgrade backup.
-
-## Recovery
-
-Rackvio ships with a break-glass CLI for operators who have lost UI access — for example, when org-wide **Require SSO** is on and the SSO provider is misconfigured. The CLI bypasses every authentication check and talks directly to the database.
-
-**Threat model:** access to these commands implies access to the host or container shell. This is the "keys to the building" assumption — if an attacker can already exec into the backend container, they can already read the database directly. The CLI is not an additional privilege escalation surface; it is a thin, audited wrapper around the recovery operations an operator would otherwise perform by hand.
-
-Every invocation of an `admin` subcommand appends a row to the `audit_events` table under one of the `sso_*` or `sso_cli_*` event types, so recovery actions remain traceable.
-
-### Available commands
-
-Run `rackvio admin --help` inside the backend container to see the full list. All three commands below are documented with `--help` on each subcommand.
-
-#### `rackvio admin reset-password <email>`
-
-Resets the password for a local (non-SSO) user. Prompts for the new password with hidden input and confirmation. Writes the bcrypt hash directly to `users.password_hash` — the user can log in via `/auth/bootstrap/login` on the next request.
+Community Edition has the core of Rackvio with no limits on assets or users. Features that aren't in
+it aren't switched off: their code isn't in the images at all, and their addresses answer 404. For
+example:
 
 ```bash
-docker compose exec backend rackvio admin reset-password admin@example.com
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/api/admin/sso/providers
+# 404
 ```
 
-Use when: the admin UI is unavailable (e.g. SSO is required org-wide and the SSO provider is broken) and you need to restore password access for a specific admin.
-
-Audit event emitted: `sso_cli_password_reset`.
-
-#### `rackvio admin promote-bootstrap <email>`
-
-Sets `users.is_bootstrap_admin = true` on the named user. The bootstrap admin flag re-activates the special first-login flow and the "bootstrap admin" banner in the UI, and is recognized by the `/auth/bootstrap/login` endpoint even when other safety gates are tripped.
-
-```bash
-docker compose exec backend rackvio admin promote-bootstrap admin@example.com
-```
-
-Use when: the original bootstrap admin has been deactivated or deleted, and you need to designate a new one without going through the UI.
-
-Audit event emitted: `sso_cli_bootstrap_promoted`.
-
-#### `rackvio admin disable-sso-requirement <org_name|all>`
-
-Clears the org-wide `organizations.require_sso` flag. Accepts either a specific organization name (exact match, case-insensitive) or the literal `all` to clear the flag across every org in a multi-tenant deployment.
-
-```bash
-# Single org
-docker compose exec backend rackvio admin disable-sso-requirement "Default Organization"
-
-# Every org (SaaS multi-tenant)
-docker compose exec backend rackvio admin disable-sso-requirement all
-```
-
-Use when: the "Require SSO" safety gate was enabled before the SSO provider was fully verified, and every admin account has been locked out of the UI.
-
-Audit event emitted: `sso_require_sso_disabled` (one row per affected org).
-
-### Recovery playbook
-
-If password admins have been locked out by a misconfigured SSO setup, run the three commands in this order:
-
-```bash
-# 1. Clear the org-wide gate so password login will accept credentials again
-docker compose exec backend rackvio admin disable-sso-requirement all
-
-# 2. Reset a known admin's password
-docker compose exec backend rackvio admin reset-password admin@example.com
-
-# 3. (Optional) re-flag the admin as bootstrap admin so the banner shows on
-#    next login and reminds them to re-check SSO configuration before turning
-#    the org-wide toggle back on.
-docker compose exec backend rackvio admin promote-bootstrap admin@example.com
-```
-
-Each command is idempotent and safe to re-run.
-
-## Enterprise-Only Features (Not in Community)
-
-The Community Edition ships the core DCIM feature set described above. The following capabilities are **not** in the community build -- they are stripped at build time via `Dockerfile.community` and webpack module replacement. Routes for these features return HTTP 404 in community:
-
-- **SSO / OIDC login** (email-domain routing, multi-provider, admin SSO page)
-- **Network auto-discovery + reconciliation** (SNMP v1/v2c/v3, LLDP/CDP)
-- **Capacity reservation + what-if scenario planning**
-- **Reports + CSV/PDF export** (Cloud Starter+)
-- **Power gap analytics + stranded capacity reporting** (Patent #007)
-- **Three-phase A/B/C circuit modeling + failover-overload detection**
-- **Cabinet design vs. live load reconciliation**
-- **kWh -> $ translation + per-org energy rate configuration**
-- **Audit log query/export beyond access events**
-- **RBAC beyond the bootstrap admin**
-- **Tenant self-service portal**
-- **In-app AI assistant** (read-only chat against your infrastructure data)
-- **API tier with rate limits + webhooks**
-
-If you need any of these, see [rackvio.com](https://rackvio.com) for Cloud Growth / Enterprise tiers, or [request a demo](https://rackvio.com/demo).
-
-You can verify the enterprise routes are absent from your community build:
-
-```bash
-curl -sk http://localhost:8000/admin/sso/providers -o /dev/null -w "%{http_code}\n"
-# Expect: 404
-```
+See [rackvio.com](https://rackvio.com) for the Cloud plans.
 
 ## Troubleshooting
 
-### Port conflict on 3000 or 8000
+### Port 3000 is already in use
 
-Another service is using the port. Either stop the conflicting service or remap ports in `docker-compose.yml`:
+Set `RACKVIO_PORT` in `.env` to a free port and run `docker compose up -d`.
 
-```yaml
-ports:
-  - "3001:3000"  # Change host port (left side)
-```
+### I can't sign in as the bootstrap administrator
 
-### Can't log in as bootstrap admin
+- The temporary password is printed only on the first start, when there are no users yet. If you
+  can't find it, [print a reset link](#if-you-lose-the-temporary-password).
+- Use the email address that was in `PLATFORM_ADMIN_EMAIL` on the first start. Changing it later
+  doesn't create a new account.
 
-- Confirm `DEPLOYMENT_MODE=self_hosted` in `.env` (the `saas` mode skips bootstrap auto-provisioning entirely).
-- Check the backend logs for the temporary-password banner: `docker compose logs backend | grep -iA 1 "temporary password"`. If the block is not there, the auto-provisioning ran on a different startup -- reset the password via `rackvio admin reset-password <email>`.
-- Confirm the email matches `PLATFORM_ADMIN_EMAIL` in `.env` exactly.
-- Check backend logs for auth errors: `docker compose logs backend | grep -i auth`.
+### Signing in loops back to the sign-in page behind my reverse proxy
 
-### Database authentication failed after changing passwords
+Your proxy isn't passing the original address. Forward the `Host` (or `X-Forwarded-Host`) and
+`X-Forwarded-Proto` headers.
 
-If you changed `DB_PASS`, `APP_DB_PASS`, or `MIGRATIONS_DB_PASS` in `.env` after the first startup, the PostgreSQL roles still have the old passwords. Either:
+### Database authentication failed after changing a password
 
-- **Reset volumes** (destroys data):
-  ```bash
-  docker compose down -v
-  docker compose up -d
-  ```
-- **Update roles manually**: connect to PostgreSQL and run:
-  ```sql
-  ALTER ROLE rackvio_app WITH PASSWORD 'new_app_password';
-  ALTER ROLE rackvio_migrations WITH PASSWORD 'new_migrations_password';
-  ```
-
-### Backend health check failing
+The database accounts keep the passwords from the first start. Either update them to match `.env`:
 
 ```bash
+docker compose exec postgres psql -U postgres -c "ALTER ROLE rackvio_app WITH PASSWORD 'new_app_password';"
+docker compose exec postgres psql -U postgres -c "ALTER ROLE rackvio_migrations WITH PASSWORD 'new_migrations_password';"
+```
+
+or start again with an empty database, which **deletes all your data** (see below).
+
+### The backend keeps restarting
+
+```bash
+docker compose ps
 docker compose logs backend
 ```
 
-Common causes:
-- PostgreSQL not ready yet (wait 30s and retry)
-- Invalid `DATABASE_URL` in `.env`
-- Missing required env vars (`AUTH_SECRET`, `PLATFORM_ADMIN_EMAIL`)
-- Migrations role lacks `BYPASSRLS` -- re-run the `db/init` scripts
+The usual causes are PostgreSQL still starting (wait 30 seconds and look again), or database
+passwords that no longer match (see above).
 
-### Containers keep restarting
-
-```bash
-# Check which container is failing
-docker compose ps
-
-# View its logs
-docker compose logs <service-name>
-```
-
-### Reset everything
-
-To wipe all data and start fresh:
+### Start again from nothing
 
 ```bash
 docker compose down -v
 docker compose up -d
 ```
 
-This destroys all database data and Redis cache. Use only as a last resort.
+This deletes the database and every Docker volume of this install, including uploaded drawings. Use
+it only as a last resort.
