@@ -31,9 +31,33 @@ docker compose logs backend | grep -i "temporary password"
 Every setting in `.env` reaches Rackvio — email, storage, the port, the address used in emailed
 links. See [INSTALL.md](INSTALL.md).
 
-> **Upgrading from an earlier compose file?** Uploaded floor-plan drawings now live on their own
-> `uploads` volume. Copy them out before you replace `docker-compose.yml` — see
-> [Upgrade](INSTALL.md#upgrade).
+## Upgrading to 1.2.2
+
+> [!IMPORTANT]
+> **Before you upgrade to 1.2.2: check `AUTH_SECRET`.** From 1.2.2, Rackvio will not start while
+> `AUTH_SECRET` in `.env` is still the example value from `.env.example`. `docker compose up -d`
+> stops with "dependency failed to start", and `docker compose logs backend` shows "Rackvio will not
+> start: AUTH_SECRET … is still an example value". Generate your own with `openssl rand -hex 32`, put
+> it in `.env` as `AUTH_SECRET=<the new value>`, then run `docker compose up -d`. Everyone is signed
+> out once. If anyone uses two-factor authentication, they sign in with one of their recovery codes
+> and set two-factor up again, or an administrator resets it in Admin > Users. Do not set
+> `MFA_ENCRYPTION_KEY` to the key `rackvio admin mfa-print-key` printed while the example value was
+> in use: anyone can compute that key, and 1.2.2 refuses it too.
+
+Follow [Upgrade](INSTALL.md#upgrade). Also new in 1.2.2:
+
+- **Floor-plan drawings** now live on their own `uploads` volume. The first time you upgrade to this
+  compose file, copy them out before you replace `docker-compose.yml` —
+  [Upgrade](INSTALL.md#upgrade) shows how.
+- **One port.** The web app and the API share port 3000 (`RACKVIO_PORT`), with the API at `/api`;
+  port 8000 is no longer published. Scripts that called `http://<your-server>:8000/...` now call
+  `http://<your-server>:3000/api/...`.
+- **Password-reset links** emailed in the 15 minutes before the upgrade stop working. Ask for a new
+  one, or an administrator creates one in Admin > Users.
+- **3D room view labels** now use a font that ships with Rackvio (Inter), so the 3D view no longer
+  contacts cdn.jsdelivr.net and its labels show on servers without internet access. Characters Inter
+  does not include (for example Chinese, Japanese, Korean, Arabic or emoji in rack names) show as
+  boxes in the 3D view. The rest of the app is unchanged.
 
 ## Load demo data
 
