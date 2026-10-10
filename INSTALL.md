@@ -278,6 +278,18 @@ exist, with exactly the name in the file. There is no dry run: valid rows are sa
 Database updates only go forward. To go back to the previous version, restore the backup from step 1
 and run the previous images (`RACKVIO_VERSION`).
 
+### What changes in 1.2.3
+
+1.2.3 is a security update only. There is no functional change and no new setting: `.env` and
+`docker-compose.yml` stay as they are. From 1.2.2, back up (step 1), then pull the new images and
+restart (step 3); if you pin `RACKVIO_VERSION` in `.env`, set it to `1.2.3` first. From 1.2.1 or
+earlier, follow every step and read [What changes in 1.2.2](#what-changes-in-122) too.
+
+- **Security updates:** Next.js 15.5.27 and sharp 0.35.5 in the web app; pyasn1 0.6.4 and WeasyPrint
+  70 in the backend. Each fixes published security advisories in the version 1.2.2 shipped.
+- **Next.js's image optimiser is switched off.** Rackvio never used it, so nothing on screen changes;
+  `/_next/image` now answers 404.
+
 ### What changes in 1.2.2
 
 - **Floor-plan drawings** now live on their own `uploads` volume. The first time you upgrade to this

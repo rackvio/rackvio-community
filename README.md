@@ -31,6 +31,20 @@ docker compose logs backend | grep -i "temporary password"
 Every setting in `.env` reaches Rackvio — email, storage, the port, the address used in emailed
 links. See [INSTALL.md](INSTALL.md).
 
+## Upgrading to 1.2.3
+
+**1.2.3 — security updates only.** From 1.2.2, pull the new images and restart
+(`docker compose pull`, then `docker compose up -d`); if you pin `RACKVIO_VERSION` in `.env`, set it
+to `1.2.3` first. There is no functional change and no new setting: `.env` and `docker-compose.yml`
+stay as they are.
+
+- **Security updates:** Next.js 15.5.27 and sharp 0.35.5 in the web app; pyasn1 0.6.4 and WeasyPrint
+  70 in the backend. Each fixes published security advisories in the version 1.2.2 shipped.
+- **Next.js's image optimiser is switched off.** Rackvio never used it, so nothing on screen changes;
+  `/_next/image` now answers 404.
+
+Coming from 1.2.1 or earlier? Read [Upgrading to 1.2.2](#upgrading-to-122) first.
+
 ## Upgrading to 1.2.2
 
 > [!IMPORTANT]
