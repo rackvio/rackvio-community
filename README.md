@@ -31,6 +31,47 @@ docker compose logs backend | grep -i "temporary password"
 Every setting in `.env` reaches Rackvio — email, storage, the port, the address used in emailed
 links. See [INSTALL.md](INSTALL.md).
 
+## Upgrading to 1.2.4
+
+**1.2.4 — fixes, and one small database update.** [Back up](INSTALL.md#back-up-and-restore) first,
+then pull the new images and restart (`docker compose pull`, then `docker compose up -d`); if you pin
+`RACKVIO_VERSION` in `.env`, set it to `1.2.4` first. `.env` and `docker-compose.yml` stay as they
+are.
+
+- **Database update 0050** runs on its own when the backend starts, before it answers. It is
+  additive: one column, in a table Community Edition doesn't use, becomes optional, and no data
+  changes. Database updates only go forward: to go back to 1.2.3, restore the backup.
+- **A saved change is saved.** When Rackvio answers that a change worked, the change is already in
+  the database. Before, the answer could arrive a moment before the save finished, so a script that
+  created something and used it at once (a floor, then a room on it) could be told it didn't exist.
+- **CSV asset import checks `face` and `lifecycle_state`.** Case and spaces don't matter (`Front`,
+  ` Installed `). An empty `face` is front and an empty `lifecycle_state` is installed. Any other
+  value skips the row, with a reason naming the allowed values; before, it was stored as written and
+  the asset showed on neither face of its rack. Assets imported earlier are not changed.
+- **Custom fields of every type.** Install Asset no longer fails ("Error 422") for a model with a
+  number or yes/no custom field, and Edit Asset shows and saves the model's custom fields.
+- **No email to example addresses.** Rackvio sends nothing to example.com, example.net or
+  example.org (or any name under them), or to an address ending `.example`, `.test`, `.invalid` or
+  `.localhost`: mail there can never be delivered. The backend log names the skipped address, and in
+  Admin > Users you copy the link instead. A test mailbox whose `SMTP_HOST` is exactly `mailhog` or
+  `mailpit` still receives them.
+- **Logs never contain tokens.** The backend no longer logs each outgoing HTTP request (the HTTP
+  client libraries log only warnings and errors), its request log masks the value of any query
+  parameter whose name looks like a secret (`token`, `key`, `secret`, `code`, `signature`,
+  `password` are logged as `***`), and a device-library sync address is logged and shown without its
+  user name, password or query.
+- **`LOG_LEVEL` (optional).** The backend log now also carries Rackvio's own messages, with the time
+  and level. To change how much it writes, add `LOG_LEVEL=WARNING` (or `DEBUG`, `ERROR`) to `.env`
+  and run `docker compose up -d`; the default is `INFO`.
+- **Screens.** On Capacity > Reconciliation the status badges stay on one line, the "Designed kW"
+  explanation is a button you can reach with the keyboard, and the "data check" label is readable in
+  the dark theme. The sign-in page's small links and the Install Asset form meet WCAG AA contrast.
+  Admin > Aliases uses generic examples and, when you try to add a second source system, names the
+  one you have; the asset import page links to it.
+
+Coming from 1.2.2? Read [Upgrading to 1.2.3](#upgrading-to-123) too. Coming from 1.2.1 or earlier?
+Read [Upgrading to 1.2.2](#upgrading-to-122) first.
+
 ## Upgrading to 1.2.3
 
 **1.2.3 — security updates only.** From 1.2.2, pull the new images and restart
